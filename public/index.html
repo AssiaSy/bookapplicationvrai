@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Book Management System</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .filter-container {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .filter-item {
+            display: flex;
+            flex-direction: column;
+        }
+        .filter-item label {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .filter-item input, .filter-item select {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 50px ;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+            cursor: pointer;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        tr:hover {
+            background-color: #f1f1f1;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            font-style: italic;
+            color: #666;
+        }
+        .error {
+            color: red;
+            text-align: center;
+            padding: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Book Management System</h1>
+    
+    <div class="filter-container">
+        <div class="filter-item">
+            <label for="genre-filter">Genre:</label>
+            <select id="genre-filter">
+                <option value="">All Genres</option>
+                <option value="Fiction">Fiction</option>
+                <option value="Fantasy">Fantasy</option>
+                <option value="Non-Fiction">Non-Fiction</option>
+                <option value="Mystery">Mystery</option>
+                <option value="Science Fiction">Science Fiction</option>
+            </select>
+        </div>
+        <div class="filter-item">
+            <label for="author-filter">Author:</label>
+            <input type="text" id="author-filter" placeholder="Author name">
+        </div>
+        <div class="filter-item">
+            <label for="year-filter">Published Year:</label>
+            <input type="number" id="year-filter" placeholder="Year">
+        </div>
+        <div class="filter-item" style="justify-content: flex-end;">
+            <button id="filter-button">Apply Filters</button>
+        </div>
+         
+    </div>
+    
+    <div id="books-container">
+        <p class="loading">Loading books...</p>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const booksContainer = document.getElementById('books-container');
+            const filterButton = document.getElementById('filter-button');
+            const genreFilter = document.getElementById('genre-filter');
+            const authorFilter = document.getElementById('author-filter');
+            const yearFilter = document.getElementById('year-filter');
+            
+            let currentSort = 'title';
+            let currentOrder = 'asc';
+            
+            // Function to fetch and display books
+            function fetchBooks() {
+                const genre = genreFilter.value;
+                const author = authorFilter.value;
+                const year = yearFilter.value;
+                
+                let url = '/api/books?';
+                
+                if (genre) url += `genre=${encodeURIComponent(genre)}&`;
+                if (author) url += `author=${encodeURIComponent(author)}&`;
+                if (year) url += `year=${encodeURIComponent(year)}&`;
+                
+                url += `sort=${currentSort}&order=${currentOrder}`;
+                
+                booksContainer.innerHTML = '<p class="loading">Loading books...</p>';
+                
+                fetch(url)
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Network response was not ok');
+                        }
+                        return response.json();
+                    })
+                    .then(books => {
+                        if (books.length === 0) {
+                            booksContainer.innerHTML = '<p>No books found matching your criteria.</p>';
+                            return;
+                        }
+                        
+                        let tableHTML = `
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th data-sort="title">Title</th>
+                                        <th data-sort="author">Author</th>
+                                        <th data-sort="published_year">Year</th>
+                                        <th data-sort="genre">Genre</th>
+                                        <th>Description</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                        `;
+                        
+                        books.forEach(book => {
+                            tableHTML += `
+                                <tr>
+                                    <td>${book.title}</td>
+                                    <td>${book.author}</td>
+                                    <td>${book.published_year || 'N/A'}</td>
+                                    <td>${book.genre || 'N/A'}</td>
+                                    <td>${book.description || 'No description available'}</td>
+                                </tr>
+                            `;
+                        });
+                        
+                        tableHTML += `
+                                </tbody>
+                            </table>
+                        `;
+                        
+                        booksContainer.innerHTML = tableHTML;
+                        
+                        // Add sorting functionality to table headers
+                        document.querySelectorAll('th[data-sort]').forEach(header => {
+                            header.addEventListener('click', () => {
+                                const sortField = header.getAttribute('data-sort');
+                                
+                                if (currentSort === sortField) {
+                                    currentOrder = currentOrder === 'asc' ? 'desc' : 'asc';
+                                } else {
+                                    currentSort = sortField;
+                                    currentOrder = 'asc';
+                                }
+                                
+                                fetchBooks();
+                            });
+                        });
+                    })
+                    .catch(error => {
+                        console.error('Error fetching books:', error);
+                        booksContainer.innerHTML = '<p class="error">Error loading books. Please try again later.</p>';
+                    });
+            }
+            
+            // Initial fetch of books
+            fetchBooks();
+            
+            // Add event listener for filter button
+            filterButton.addEventListener('click', fetchBooks);
+        });
+    </script>
+</body>
+</html><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Book Management System</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .filter-container {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .filter-item {
+            display: flex;
+            flex-direction: column;
+        }
+        .filter-item label {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .filter-item input, .filter-item select {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+            cursor: pointer;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        tr:hover {
+            background-color: #f1f1f1;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            font-style: italic;
+            color: #666;
+        }
+        .error {
+            color: red;
+            text-align: center;
+            padding: 10px;
+        }
+        .success {
+            color: green;
+            text-align: center;
+            padding: 10px;
+        }
+        .action-buttons {
+            display: flex;
+            gap: 5px;
+        }
+        .delete-btn {
+            background-color: #f44336;
+        }
+        .delete-btn:hover {
+            background-color: #d32f2f;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: 15% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 500px;
+            border-radius: 5px;
+        }
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .close:hover {
+            color: black;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .form-group input, .form-group textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        .form-group textarea {
+            height: 100px;
+        }
+        .modal-footer {
+            margin-top: 20px;
+            text-align: right;
+        }
+        .toolbar {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px;
+            border-radius: 5px;
+            color: white;
+            font-weight: bold;
+            z-index: 1000;
+            display: none;
+        }
+        .notification.success {
+            background-color: #4CAF50;
+        }
+        .notification.error {
+            background-color: #f44336;
+        }
+    </style>
+</head>
+<body>
+    
+    
+    <div class="toolbar">
+        <div class="filter-container">
+            
+        </div>
+        <div>
+            <button id="add-book-btn">Add New Book</button>
+        </div>
+    </div>
+    
+    
+    
+    <!-- Add Book Modal -->
+    <div id="add-book-modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Add New Book</h2>
+            <form id="add-book-form">
+                <div class="form-group">
+                    <label for="title">Title:</label>
+                    <input type="text" id="title" name="title" required>
+                </div>
+                <div class="form-group">
+                    <label for="author">Author:</label>
+                    <input type="text" id="author" name="author" required>
+                </div>
+                <div class="form-group">
+                    <label for="published_year">Published Year:</label>
+                    <input type="number" id="published_year" name="published_year">
+                </div>
+                <div class="form-group">
+                    <label for="genre">Genre:</label>
+                    <select id="genre" name="genre">
+                        <option value="">Select Genre</option>
+                        <option value="Fiction">Fiction</option>
+                        <option value="Fantasy">Fantasy</option>
+                        <option value="Non-Fiction">Non-Fiction</option>
+                        <option value="Mystery">Mystery</option>
+                        <option value="Science Fiction">Science Fiction</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="description">Description:</label>
+                    <textarea id="description" name="description"></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" id="cancel-btn">Cancel</button>
+                    <button type="submit">Save Book</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Notification -->
+    <div id="notification" class="notification"></div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const booksContainer = document.getElementById('books-container');
+            const filterButton = document.getElementById('filter-button');
+            const genreFilter = document.getElementById('genre-filter');
+            const authorFilter = document.getElementById('author-filter');
+            const yearFilter = document.getElementById('year-filter');
+            const addBookBtn = document.getElementById('add-book-btn');
+            const addBookModal = document.getElementById('add-book-modal');
+            const addBookForm = document.getElementById('add-book-form');
+            const cancelBtn = document.getElementById('cancel-btn');
+            const closeBtn = document.querySelector('.close');
+            const notification = document.getElementById('notification');
+            
+            let currentSort = 'title';
+            let currentOrder = 'asc';
+            
+            // Function to show notification
+            function showNotification(message, type) {
+                notification.textContent = message;
+                notification.className = `notification ${type}`;
+                notification.style.display = 'block';
+                
+                setTimeout(() => {
+                    notification.style.display = 'none';
+                }, 3000);
+            }
+            
+            // Function to fetch and display books
+            function fetchBooks() {
+                const genre = genreFilter.value;
+                const author = authorFilter.value;
+                const year = yearFilter.value;
+                
+                let url = '/api/books?';
+                
+                if (genre) url += `genre=${encodeURIComponent(genre)}&`;
+                if (author) url += `author=${encodeURIComponent(author)}&`;
+                if (year) url += `year=${encodeURIComponent(year)}&`;
+                
+                url += `sort=${currentSort}&order=${currentOrder}`;
+                
+                booksContainer.innerHTML = '<p class="loading">Loading books...</p>';
+                
+                fetch(url)
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Network response was not ok');
+                        }
+                        return response.json();
+                    })
+                    .then(books => {
+                        if (books.length === 0) {
+                            booksContainer.innerHTML = '<p>No books found matching your criteria.</p>';
+                            return;
+                        }
+                        
+                        let tableHTML = `
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th data-sort="title">Title</th>
+                                        <th data-sort="author">Author</th>
+                                        <th data-sort="published_year">Year</th>
+                                        <th data-sort="genre">Genre</th>
+                                        <th>Description</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                        `;
+                        
+                        books.forEach(book => {
+                            tableHTML += `
+                                <tr data-id="${book.id}">
+                                    <td>${book.title}</td>
+                                    <td>${book.author}</td>
+                                    <td>${book.published_year || 'N/A'}</td>
+                                    <td>${book.genre || 'N/A'}</td>
+                                    <td>${book.description || 'No description available'}</td>
+                                    <td>
+                                        <div class="action-buttons">
+                                            <button class="delete-btn" data-id="${book.id}">Delete</button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            `;
+                        });
+                        
+                        tableHTML += `
+                                </tbody>
+                            </table>
+                        `;
+                        
+                        booksContainer.innerHTML = tableHTML;
+                        
+                        // Add sorting functionality to table headers
+                        document.querySelectorAll('th[data-sort]').forEach(header => {
+                            header.addEventListener('click', () => {
+                                const sortField = header.getAttribute('data-sort');
+                                
+                                if (currentSort === sortField) {
+                                    currentOrder = currentOrder === 'asc' ? 'desc' : 'asc';
+                                } else {
+                                    currentSort = sortField;
+                                    currentOrder = 'asc';
+                                }
+                                
+                                fetchBooks();
+                            });
+                        });
+                        
+                        // Add event listeners for delete buttons
+                        document.querySelectorAll('.delete-btn').forEach(button => {
+                            button.addEventListener('click', function() {
+                                const bookId = this.getAttribute('data-id');
+                                deleteBook(bookId);
+                            });
+                        });
+                    })
+                    .catch(error => {
+                        console.error('Error fetching books:', error);
+                        booksContainer.innerHTML = '<p class="error">Error loading books. Please try again later.</p>';
+                    });
+            }
+            
+            // Function to delete a book
+            function deleteBook(id) {
+                if (confirm('Are you sure you want to delete this book?')) {
+                    fetch(`/api/books/${id}`, {
+                        method: 'DELETE',
+                    })
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Network response was not ok');
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        showNotification('Book deleted successfully', 'success');
+                        fetchBooks(); // Refresh the book list
+                    })
+                    .catch(error => {
+                        console.error('Error deleting book:', error);
+                        showNotification('Error deleting book', 'error');
+                    });
+                }
+            }
+            
+            // Function to add a new book
+            function addBook(bookData) {
+                fetch('/api/books', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(bookData),
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    showNotification('Book added successfully', 'success');
+                    closeModal();
+                    fetchBooks(); // Refresh the book list
+                })
+                .catch(error => {
+                    console.error('Error adding book:', error);
+                    showNotification('Error adding book', 'error');
+                });
+            }
+            
+            // Modal functions
+            function openModal() {
+                addBookModal.style.display = 'block';
+                addBookForm.reset();
+            }
+            
+            function closeModal() {
+                addBookModal.style.display = 'none';
+            }
+            
+            // Event listeners
+            addBookBtn.addEventListener('click', openModal);
+            closeBtn.addEventListener('click', closeModal);
+            cancelBtn.addEventListener('click', closeModal);
+            
+            // Close modal when clicking outside
+            window.addEventListener('click', function(event) {
+                if (event.target === addBookModal) {
+                    closeModal();
+                }
+            });
+            
+            // Form submission
+            addBookForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                const bookData = {
+                    title: document.getElementById('title').value,
+                    author: document.getElementById('author').value,
+                    published_year: document.getElementById('published_year').value || null,
+                    genre: document.getElementById('genre').value || null,
+                    description: document.getElementById('description').value || null
+                };
+                
+                addBook(bookData);
+            });
+            
+            // Initial fetch of books
+            fetchBooks();
+            
+            // Add event listener for filter button
+            filterButton.addEventListener('click', fetchBooks);
+        });
+    </script>
+</body>
+</html>
